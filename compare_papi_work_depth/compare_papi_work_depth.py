@@ -6,6 +6,7 @@ import copy
 import os
 import importlib
 import multiprocessing as mp
+import json
 
 import dace.transformation.auto.auto_optimize as opt
 from datetime import datetime, timezone
@@ -141,6 +142,7 @@ if __name__ == "__main__":
 
     fp_event = "PAPI_DP_OPS"
     
+    results = {}
     
     no_diff = []
     for benchmark_name in benchmarks:
@@ -148,6 +150,7 @@ if __name__ == "__main__":
         benchmark = Benchmark(benchmark_name)
         sdfg, simplified_sdfg = get_bench_sdfg(benchmark, dace_cpu_framework)
         bdata = benchmark.get_data(args["preset"])
+
         for event_set in [{"PAPI_DP_OPS"}]:
             try:
                 papi.PAPIInstrumentation._counters = event_set   
@@ -185,11 +188,18 @@ if __name__ == "__main__":
                                     event_sums[event_name] = []
                                 
                                 ws = work.subs(substitutions)
+
+                                results[benchmark_name] = {"PAPI": event_sum, "Work": str(ws)}
                                 print("PAPI_DP_OPS:", event_sum, "Work depth:", ws, "Diff:", abs(event_sum-ws))
                                 if abs(event_sum-ws) == sp.sympify(0):
-                                    no_diff.append(benchmark_name)
+                                    no_diff.append(benchmark_name)   
+            
             except Exception as e:
                 print(e)
                 traceback.print_exc()
-                continue 
+                continue
+            results["no_diff"] = no_diff
+        import json
+    with open('result.json', 'w') as fp:
+        json.dump(results, fp, indent=4)
     print(no_diff, len(no_diff))

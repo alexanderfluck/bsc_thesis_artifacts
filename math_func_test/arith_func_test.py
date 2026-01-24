@@ -4,6 +4,7 @@ import random
 from dace.codegen.instrumentation import papi
 import numpy as np
 import dace.transformation.auto.auto_optimize as opt
+from copy import deepcopy
 
 
 @dace.program
@@ -106,16 +107,19 @@ def generate_inputs(seed=12345):
     assert inputs.shape[0] == 10_000
     return inputs, labels
 
-def generate_inputs_uniform( lower_bound, upper_bound, seed=12345):
+def generate_inputs_uniform( lower_bound:float=-2.0**30, upper_bound:float=2.0**30, size=10, seed=12345):
     rng = np.random.default_rng(seed)
-    inputs = rng.uniform(-2**-30, 2**-30, size=10000)
-    return inputs
+    inputs = rng.uniform(lower_bound, upper_bound, size)
+    return inputs, []
 
 if __name__ == "__main__":
 
     
-    funcs = [dace_sin, dace_cos, dace_tan, dace_sinh, dace_tanh, dace_sqrt, dace_pow, dace_exp]
-    for func in funcs:
+    funcs = {"sin": dace_sin, "cos": dace_cos, "tan": dace_tan, "pow": dace_pow}
+    
+    results = {}
+    
+    for name, func in funcs.items():
         sdfg = func.to_sdfg()
         opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
         sdfg.instrument = dace.InstrumentationType.PAPI_Counters
@@ -124,8 +128,8 @@ if __name__ == "__main__":
         
         papi.PAPIInstrumentation._counters = {"PAPI_DP_OPS"}
 
-        ins, ls = generate_inputs()
-        exps, expls = generate_inputs(54321)
+        ins, ls = generate_inputs_uniform()
+        exps, expls = generate_inputs_uniform(54321)
 
         small = np.zeros(10000)
         big = np.zeros(10000)
@@ -154,3 +158,51 @@ if __name__ == "__main__":
         print(np.mean(big), np.median(big), np.max(big), np.min(big))
         print(big)
 
+        results[name] = np.copy(big)
+
+    
+
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+
+    cleaned = {
+    name: np.asarray(vals)[np.isfinite(vals)]
+    for name, vals in results.items()
+    if np.any(np.isfinite(vals))
+    }
+
+    names = list(cleaned.keys())
+    data  = [cleaned[n] for n in names]
+
+    x = np.arange(len(names))
+
+    # One color per function
+    cmap = cm.get_cmap("tab10", len(names))
+    colors = [cmap(i) for i in range(len(names))]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    for i, (name, vals, color) in enumerate(zip(names, data, colors)):
+        # Horizontal jitter to reveal overlap
+        jitter = np.random.normal(0, 0.08, size=len(vals))
+
+        ax.scatter(
+            np.full_like(vals, x[i], dtype=float) + jitter,
+            vals,
+            s=10,
+            alpha=0.15,          # overlap → darker
+            color=color,
+            edgecolors="none",
+            rasterized=True      # important for many points
+        )
+
+    # Axes & styling
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation=0)
+    ax.set_ylabel("DP FLOP count per call")
+    ax.set_title("Discrete FLOP-count variability of math functions")
+
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()

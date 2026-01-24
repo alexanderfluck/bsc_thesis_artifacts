@@ -138,11 +138,7 @@ if __name__ == "__main__":
     preset = args["preset"]
 
     start = (int(datetime.now(timezone.utc).timestamp() * 1000))
-    first_bench = True
-    wd_fail=[]
     ba_fail=[]
-    rw_fail=[]
-    oi_fail=[]
 
     timeout_fail = []
     error_fail = []
@@ -159,87 +155,21 @@ if __name__ == "__main__":
         
         opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
         substitutions = benchmark.info["parameters"][preset]
-        print(substitutions)
-        #opt.auto_optimize(sdfg,dace.dtypes.DeviceType.CPU)
         sdfg.save("curr_sdfg.sdfg")
-        try:
-
-            work, depth = wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False)   
-            if substitute:
-                work = work.subs(substitutions)    
-                depth = depth.subs(substitutions)         
-            print("[Not simplified] Work:", work, "Depth:", depth)
-            pass
-        except Exception as e:
-            print(traceback.print_exc())
-            wd_fail.append(benchmark_name)
-        print("------ Read Write Sets")
-        try:
-            read, write = maa.analyze_sdfg(sdfg)
-            read_simpl, write_simpl = maa.analyze_sdfg(sdfg)
-            print("Read:", read, "Write:", write)
-            sdfg.save("jacobi_2d.sdfg")
-            print("[Not simplified] \nRead:", read, "\nWrite:", write)
-            for k, v in read.items():
-                print(f"{k}: {v.subset_list}")
-            approx_v = maa.approximate_total_volume(sdfg, substitutions)
-            print("Approx total volume:", approx_v)
-
-        except Exception as e:
-            print(traceback.print_exc())
-            rw_fail.append(benchmark_name)
-        print("------ Read Write Volume")
+        
         try:
             vol_r, vol_w = tv.analyze_sdfg(sdfg)     
-            print(vol_r, vol_w)       
+            print("Volume read symbolic:", vol_r ,"bytes", "\nVolume write symbolic:", vol_w, "bytes")
             if substitute:
                 vol_r = vol_r.subs(substitutions)
                 vol_w = vol_w.subs(substitutions)
-            print("Volume read:", vol_r, "Volume write:", vol_w)
+            print(f"Volume read with subs for preset [{preset}]:", vol_r, "bytes", f"\nVolume write with subs for preset [{preset}]:", vol_w, "bytes")
+
         except Exception as e:
             print(traceback.print_exc())
             ba_fail.append(benchmark_name)
 
-        TIMEOUT = 20 * 60  # 20 minutes
-
-        def analyze_worker(q, oi, sdfg, substitutions):
-            try:
-                assumptions = {k: 4 for k in substitutions}
-                oi = oi.analyze_sdfg_op_in(sdfg, {}, 2048, 64, assumptions)
-                print(oi)
-                q.put(("success", None))
-            except Exception:
-                q.put(("error", traceback.format_exc())) 
-
-        q = mp.Queue()
-        p = mp.Process(
-            target=analyze_worker,
-            args=(q, oi, sdfg, substitutions),
-        )
-
-        p.start()
-        p.join(TIMEOUT)
-
-        if p.is_alive():
-            # ⏰ Timeout
-            p.terminate()
-            p.join()
-            timeout_fail.append(benchmark_name)
-
-        else:
-            status, payload = q.get()
-            if status == "error":
-                print(payload)
-                error_fail.append(benchmark_name)
-            else:
-                print("OI:")
-
-        bdata = benchmark.get_data(args["preset"])
-
     end = (int(datetime.now(timezone.utc).timestamp() * 1000))
+
     print("Duration:",  (end - start)/(1000*60), "min")
-    print("Work depth failed for: ", wd_fail)
-    print("May access failed for: ", rw_fail)
     print("Total vol failed for:", ba_fail)
-    print("OI timed out for: ", timeout_fail)
-    print("OI failed for: ", error_fail)
