@@ -93,7 +93,7 @@ if __name__ == "__main__":
                         "--preset",
                         choices=['S', 'M', 'L', 'paper'],
                         nargs="?",
-                        default='S')
+                        default='paper')
     parser.add_argument("-v",
                         "--validate",
                         type=util.str2bool,
@@ -153,18 +153,27 @@ if __name__ == "__main__":
         benchmark = Benchmark(benchmark_name)
         sdfg, simplified_sdfg = get_bench_sdfg(benchmark, dace_cpu_framework)
         
+        work, depth = wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False)  
+
         opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
         substitutions = benchmark.info["parameters"][preset]
         sdfg.save("curr_sdfg.sdfg")
         
+        
+
+
         try:
             vol_r, vol_w = tv.analyze_sdfg(sdfg)     
             print("Volume read symbolic:", vol_r ,"bytes", "\nVolume write symbolic:", vol_w, "bytes")
+            oi_val = work/(vol_r+vol_w) 
+            print("OI:", oi_val.evalf(6))
             if substitute:
                 vol_r = vol_r.subs(substitutions)
                 vol_w = vol_w.subs(substitutions)
+                work = work.subs(substitutions)
             print(f"Volume read with subs for preset [{preset}]:", vol_r, "bytes", f"\nVolume write with subs for preset [{preset}]:", vol_w, "bytes")
-
+            oi_val = work/(vol_r+vol_w) 
+            print("OI:", oi_val.evalf(6))
         except Exception as e:
             print(traceback.print_exc())
             ba_fail.append(benchmark_name)

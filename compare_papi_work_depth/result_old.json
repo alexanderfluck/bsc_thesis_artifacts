@@ -1,0 +1,206 @@
+{
+    "adi": {
+        "PAPI": 1440613,
+        "Work": "1442574"
+    },
+    "no_diff": [
+        "atax",
+        "bicg",
+        "gemm",
+        "gesummv",
+        "hdiff",
+        "heat_3d",
+        "jacobi_1d",
+        "jacobi_2d",
+        "k2mm",
+        "k3mm",
+        "mvt",
+        "syr2k",
+        "syrk",
+        "vadv"
+    ],
+    "arc_distance": {
+        "PAPI": 12462536,
+        "Work": "1800000"
+    },
+    "atax": {
+        "PAPI": 80000000,
+        "Work": "80000000"
+    },
+    "azimint_hist": {
+        "PAPI": 5208079,
+        "Work": "4805004"
+    },
+    "azimint_naive": {
+        "PAPI": 1248094,
+        "Work": "Piecewise((800006000, __tmp_32_15_r))"
+    },
+    "bicg": {
+        "PAPI": 80000000,
+        "Work": "80000000"
+    },
+    "cavity_flow": {
+        "PAPI": 9578075,
+        "Work": "9575025"
+    },
+    "channel_flow": {
+        "PAPI": 442386725,
+        "Work": "0"
+    },
+    "cholesky2": {
+        "PAPI": 33639289,
+        "Work": "cholesky_work + 1000000"
+    },
+    "cholesky": {
+        "PAPI": 845335,
+        "Work": "338350"
+    },
+    "compute": {
+        "PAPI": 0,
+        "Work": "16000000"
+    },
+    "contour_integral": {
+        "PAPI": 25043824,
+        "Work": "Piecewise((32*solve_work + 1200288, (z > -1.0) & (z < 1.0)), (nan, True))"
+    },
+    "conv2d_bias": {
+        "PAPI": 0,
+        "Work": "3075200"
+    },
+    "correlation": {
+        "PAPI": 151502025,
+        "Work": "151752001"
+    },
+    "covariance": {
+        "PAPI": 151031697,
+        "Work": "151026250"
+    },
+    "crc16": {
+        "PAPI": 0,
+        "Work": "M*(3201*M + 9605)/2"
+    },
+    "deriche": {
+        "PAPI": 2547490,
+        "Work": "2547437"
+    },
+    "durbin": {
+        "PAPI": 3752783,
+        "Work": "2001996"
+    },
+    "floyd_warshall": {
+        "PAPI": 0,
+        "Work": "8000000"
+    },
+    "gemm": {
+        "PAPI": 2643400000,
+        "Work": "2643400000"
+    },
+    "gesummv": {
+        "PAPI": 24002000,
+        "Work": "24002000"
+    },
+    "go_fast": {
+        "PAPI": 4072736,
+        "Work": "4004000"
+    },
+    "gramschmidt": {
+        "PAPI": 866455,
+        "Work": "506430"
+    },
+    "hdiff": {
+        "PAPI": 4033200,
+        "Work": "4033200"
+    },
+    "heat_3d": {
+        "PAPI": 8760240,
+        "Work": "8760240"
+    },
+    "jacobi_1d": {
+        "PAPI": 15331212,
+        "Work": "15331212"
+    },
+    "jacobi_2d": {
+        "PAPI": 10732960,
+        "Work": "10732960"
+    },
+    "k2mm": {
+        "PAPI": 2518240000,
+        "Work": "2518240000"
+    },
+    "k3mm": {
+        "PAPI": 4104000000,
+        "Work": "4104000000"
+    },
+    "lenet": {
+        "PAPI": 0,
+        "Work": "960*C_before_fc1 + 2026136"
+    },
+    "ludcmp": {
+        "PAPI": 350558,
+        "Work": "153050"
+    },
+    "lu": {
+        "PAPI": 325654,
+        "Work": "145790"
+    },
+    "mandelbrot1": {
+        "PAPI": 6609038,
+        "Work": "Piecewise((1906757, __tmp_45_15_r))"
+    },
+    "mandelbrot2": {
+        "PAPI": 6749892,
+        "Work": "80807"
+    },
+    "mlp": {
+        "PAPI": 104,
+        "Work": "1025776000"
+    },
+    "mvt": {
+        "PAPI": 121011000,
+        "Work": "121011000"
+    },
+    "nbody": {
+        "PAPI": 977165,
+        "Work": "Piecewise((21129*Nt + 20785, ~I_0), (22379*Nt + 22035, I_0))"
+    },
+    "nussinov": {
+        "PAPI": 0,
+        "Work": "Piecewise((53304*Nt + 52750, ~I_0), (56504*Nt + 55950, I_0))"
+    },
+    "resnet": {
+        "PAPI": 0,
+        "Work": "4065312"
+    },
+    "scattering_self_energies": {
+        "PAPI": 677376,
+        "Work": "Sum(Piecewise((6048, E >= w)), (w, 0, 1), (q, 0, 1), (E, 0, 3), (k, 0, 1))"
+    },
+    "seidel_2d": {
+        "PAPI": 145152,
+        "Work": "145153"
+    },
+    "softmax": {
+        "PAPI": 54525952,
+        "Work": "16777216"
+    },
+    "symm": {
+        "PAPI": 272404,
+        "Work": "170000"
+    },
+    "syr2k": {
+        "PAPI": 269025,
+        "Work": "269025"
+    },
+    "syrk": {
+        "PAPI": 254485,
+        "Work": "254485"
+    },
+    "trmm": {
+        "PAPI": 754881,
+        "Work": "338000"
+    },
+    "vadv": {
+        "PAPI": 4237200,
+        "Work": "4237200"
+    }
+}

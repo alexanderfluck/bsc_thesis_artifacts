@@ -35,6 +35,7 @@ def iterated_dot(a: dace.float64[N], b:dace.float64[N], c:dace.float64[N]):
     for i in range(1, N+1):
         c[i-1] =  np.dot(a[0:i], b[0:i])
 
+
 import dace.sdfg.performance_evaluation.work_depth as wd
 
 mm_sdfg = matmul.to_sdfg()

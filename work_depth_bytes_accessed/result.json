@@ -1,0 +1,11 @@
+{
+    "lenet": {
+        "PAPI": 0,
+        "Work": "960*C_before_fc1 + 2026136"
+    },
+    "no_diff": [],
+    "resnet": {
+        "PAPI": 0,
+        "Work": "4065312"
+    }
+}

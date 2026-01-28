@@ -137,10 +137,6 @@ if __name__ == "__main__":
     dace_cpu_framework = DaceFramework("dace_cpu")
     repetitions = 1
     preset = args["preset"]
-
-    fp_events = ["PAPI_DP_OPS"]
-
-    fp_event = "PAPI_DP_OPS"
     
     results = {}
     
@@ -148,9 +144,10 @@ if __name__ == "__main__":
     for benchmark_name in benchmarks:
         print("="*50, benchmark_name, "="*50)
         benchmark = Benchmark(benchmark_name)
+
         sdfg, simplified_sdfg = get_bench_sdfg(benchmark, dace_cpu_framework)
         bdata = benchmark.get_data(args["preset"])
-
+        #opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
         for event_set in [{"PAPI_DP_OPS"}]:
             try:
                 papi.PAPIInstrumentation._counters = event_set   
@@ -158,22 +155,26 @@ if __name__ == "__main__":
 
                 sdfg.instrument = dace.InstrumentationType.PAPI_Counters
 
-
-                c_sdfg = sdfg.compile()
-
-
                 substitutions = benchmark.info["parameters"][preset]
+                print(preset, benchmark.info["parameters"][preset])
+                print("L:", benchmark.info["parameters"]['L'])
                 try:
-                    work, depth = wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], True)
+                    work, depth = wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False)
                 except:
                     traceback.print_exc()
+                c_sdfg = sdfg.compile()
+
+                
+                
 
                 time_list = []
                 
-                _ , raw_time_list = util.benchmark("c_sdfg(**bdata)", context=locals(), verbose=False, repeat=1)
+                for i in range(5):
+                    copy_data = copy.deepcopy(bdata)
+                    _ , raw_time_list = util.benchmark("c_sdfg(**copy_data)", context=locals(), verbose=False, repeat=1)
                 time_list.extend(raw_time_list)
                     
-                new_reports = sorted(sdfg.get_instrumentation_reports(), key=lambda report: report.name, reverse=True)[0:repetitions]
+                new_reports = sorted(sdfg.get_instrumentation_reports(), key=lambda report: report.name, reverse=True)[0:5]
 
                 event_sums = dict()
                 for i, report in enumerate(reversed(new_reports)):
@@ -199,6 +200,7 @@ if __name__ == "__main__":
                 traceback.print_exc()
                 continue
             results["no_diff"] = no_diff
+            print(work.subs(substitutions))
         import json
     with open('result.json', 'w') as fp:
         json.dump(results, fp, indent=4)

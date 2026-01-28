@@ -111,14 +111,14 @@ if __name__ == "__main__":
 
     benchmark_set = ['adi','arc_distance','atax','azimint_hist','azimint_naive','bicg',
                   'cavity_flow','channel_flow','cholesky2','cholesky','compute','contour_integral',
-                  'conv2d_bias','correlation',#'covariance2',
-                  'covariance','crc16','deriche',#'doitgen',
+                  'conv2d_bias','correlation',# 'covariance2', --> cov 2 dace does not exist
+                  'covariance','crc16','deriche',#'doitgen', --> doitgen, auto opt fails (more precisely, expand_library_nodes())
                   'durbin','fdtd_2d','floyd_warshall','gemm',
                   'gemver','gesummv','go_fast','gramschmidt',
-                  'hdiff','heat_3d','jacobi_1d','jacobi_2d','k2mm','k3mm','lenet','ludcmp','lu',#'mandelbrot1',
-                  #'mandelbrot2',
+                  'hdiff','heat_3d','jacobi_1d','jacobi_2d','k2mm','k3mm','lenet','ludcmp','lu','mandelbrot1',
+                  #'mandelbrot2', --> mandelbrot2, auto_opt fails
                   'mlp','mvt','nbody','nussinov','resnet','scattering_self_energies','seidel_2d',
-                  'softmax','spmv',#'stockham_fft',
+                  'softmax','spmv',# 'stockham_fft', --> stockham_fft compilation fails
                   'symm','syr2k','syrk','trisolv','trmm','vadv']
     
     benchmarks = list()
@@ -143,37 +143,41 @@ if __name__ == "__main__":
     ba_fail=[]
     rw_fail=[]
     oi_fail=[]
+    wd_no_fail = []
+    comp_fail = []
 
     timeout_fail = []
     error_fail = []
     import dace.sdfg.performance_evaluation.work_depth as wd
-    import dace.sdfg.performance_evaluation.may_access_analysis as maa
+    """import dace.sdfg.performance_evaluation.may_access_analysis as maa"""
     import dace.sdfg.performance_evaluation.total_volume as tv 
-    import dace.sdfg.performance_evaluation.operational_intensity as oi
+    """import dace.sdfg.performance_evaluation.operational_intensity as oi"""
     substitute = True
     
     for benchmark_name in benchmarks:
         print("="*50, benchmark_name, "="*50)
         benchmark = Benchmark(benchmark_name)
         sdfg, simplified_sdfg = get_bench_sdfg(benchmark, dace_cpu_framework)
+        sdfg.save(f"{benchmark_name}_non_op.sdfg")
         
         opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
         substitutions = benchmark.info["parameters"][preset]
         print(substitutions)
         #opt.auto_optimize(sdfg,dace.dtypes.DeviceType.CPU)
-        sdfg.save("curr_sdfg.sdfg")
+        sdfg.save(f"{benchmark_name}.sdfg")
         try:
 
-            work, depth = wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False)   
-            if substitute:
+            print(wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False) )
+            wd_no_fail.append(benchmark_name)  
+            """if substitute:
                 work = work.subs(substitutions)    
                 depth = depth.subs(substitutions)         
-            print("[Not simplified] Work:", work, "Depth:", depth)
+            print("[Not simplified] Work:", work, "Depth:", depth)"""
             pass
         except Exception as e:
             print(traceback.print_exc())
             wd_fail.append(benchmark_name)
-        print("------ Read Write Sets")
+        """ print("------ Read Write Sets")
         try:
             read, write = maa.analyze_sdfg(sdfg)
             read_simpl, write_simpl = maa.analyze_sdfg(sdfg)
@@ -188,6 +192,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(traceback.print_exc())
             rw_fail.append(benchmark_name)
+        """
         print("------ Read Write Volume")
         try:
             vol_r, vol_w = tv.analyze_sdfg(sdfg)     
@@ -202,7 +207,13 @@ if __name__ == "__main__":
 
         TIMEOUT = 20 * 60  # 20 minutes
 
-        def analyze_worker(q, oi, sdfg, substitutions):
+        try:
+            sdfg.compile()     
+        except Exception as e:
+            print(traceback.print_exc())
+            comp_fail.append(benchmark_name)
+
+        """def analyze_worker(q, oi, sdfg, substitutions):
             try:
                 assumptions = {k: 4 for k in substitutions}
                 oi = oi.analyze_sdfg_op_in(sdfg, {}, 2048, 64, assumptions)
@@ -234,7 +245,7 @@ if __name__ == "__main__":
             else:
                 print("OI:")
 
-        bdata = benchmark.get_data(args["preset"])
+        bdata = benchmark.get_data(args["preset"])"""
 
     end = (int(datetime.now(timezone.utc).timestamp() * 1000))
     print("Duration:",  (end - start)/(1000*60), "min")
@@ -243,3 +254,5 @@ if __name__ == "__main__":
     print("Total vol failed for:", ba_fail)
     print("OI timed out for: ", timeout_fail)
     print("OI failed for: ", error_fail)
+    print("compilation failed for", comp_fail)
+    print("WD no fail:", wd_no_fail)

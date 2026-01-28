@@ -1,5 +1,5 @@
 import dace
-from math import sin
+from math import sin, asin, acos, atan
 import random
 from dace.codegen.instrumentation import papi
 import numpy as np
@@ -18,6 +18,18 @@ def dace_cos(x:dace.float64):
 @dace.program
 def dace_tan(x:dace.float64):
     return np.tan(x)
+
+@dace.program
+def dace_asin(x:dace.float64):
+    return np.arcsin(x)
+
+@dace.program
+def dace_acos(x:dace.float64):
+    return np.arccos(x)
+
+@dace.program
+def dace_atan(x:dace.float64):
+    return np.arctan(x)
 
 @dace.program
 def dace_sinh(x:dace.float64):
@@ -42,6 +54,28 @@ def dace_exp(x:dace.float64):
 @dace.program
 def dace_sqrt(x:dace.float64):
     return np.sqrt(x)
+
+@dace.program
+def dace_log(x:dace.float64):
+    return np.log(x)
+
+@dace.program
+def dace_arcsin2(x:dace.float64):
+    return np.arcsin2(x)
+
+
+@dace.program
+def dace_arccos2(x:dace.float64):
+    return np.arccos2(x)
+
+@dace.program
+def dace_arctan2(x:dace.float64):
+    return np.arctan2(x)
+
+@dace.program
+def to_int(x:dace.float64):
+    return dace.int64(x)
+
 
 def generate_inputs(seed=12345):
     rng = np.random.default_rng(seed)
@@ -107,7 +141,7 @@ def generate_inputs(seed=12345):
     assert inputs.shape[0] == 10_000
     return inputs, labels
 
-def generate_inputs_uniform( lower_bound:float=-2.0**30, upper_bound:float=2.0**30, size=10, seed=12345):
+def generate_inputs_uniform( lower_bound:float=-2.0**60, upper_bound:float=2.0**60, size=10, seed=12345):
     rng = np.random.default_rng(seed)
     inputs = rng.uniform(lower_bound, upper_bound, size)
     return inputs, []
@@ -115,24 +149,25 @@ def generate_inputs_uniform( lower_bound:float=-2.0**30, upper_bound:float=2.0**
 if __name__ == "__main__":
 
     
-    funcs = {"sin": dace_sin, "cos": dace_cos, "tan": dace_tan, "pow": dace_pow}
+    funcs = { "to_int": to_int}
     
     results = {}
+
+    num_inputs = 10000
     
     for name, func in funcs.items():
         sdfg = func.to_sdfg()
-        opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
         sdfg.instrument = dace.InstrumentationType.PAPI_Counters
         
         import dace.sdfg.performance_evaluation.work_depth as wd
         
         papi.PAPIInstrumentation._counters = {"PAPI_DP_OPS"}
 
-        ins, ls = generate_inputs_uniform()
-        exps, expls = generate_inputs_uniform(54321)
+        ins, ls = generate_inputs_uniform(size = num_inputs)
+        exps, expls = generate_inputs_uniform(54321, size= num_inputs)
 
-        small = np.zeros(10000)
-        big = np.zeros(10000)
+        small = np.zeros(num_inputs)
+        big = np.zeros(num_inputs)
         c_sdfg = sdfg.compile()
         if func == dace_pow or func == dace_exp:
             for c, i in enumerate(ins):
@@ -141,7 +176,7 @@ if __name__ == "__main__":
         else :
             for c, i in enumerate(ins):
                 c_sdfg(i)
-        new_reports = sorted(sdfg.get_instrumentation_reports(), key=lambda report: report.name, reverse=True)[0:10000]
+        new_reports = sorted(sdfg.get_instrumentation_reports(), key=lambda report: report.name, reverse=True)[0:num_inputs]
 
 
 
@@ -196,13 +231,21 @@ if __name__ == "__main__":
             rasterized=True      # important for many points
         )
 
-    # Axes & styling
+    FS_TICKS  = 14
+    FS_LABEL  = 16
+    FS_TITLE  = 18
+
     ax.set_xticks(x)
-    ax.set_xticklabels(names, rotation=0)
-    ax.set_ylabel("DP FLOP count per call")
-    ax.set_title("Discrete FLOP-count variability of math functions")
+    ax.set_xticklabels(names, fontsize=FS_TICKS)
+    ax.tick_params(axis='y', labelsize=FS_TICKS)
+
+    ax.set_ylabel("DP FLOP count per call", fontsize=FS_LABEL)
+    ax.set_title("Discrete FLOP-count variability of math functions",
+                fontsize=FS_TITLE)
 
     ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
     plt.show()
+    fig.savefig("math_func.pdf", bbox_inches='tight')
+    
