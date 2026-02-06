@@ -148,10 +148,10 @@ if __name__ == "__main__":
 
     timeout_fail = []
     error_fail = []
-    import dace.sdfg.performance_evaluation.work_depth as wd
+    """import dace.sdfg.performance_evaluation.work_depth as wd"""
     """import dace.sdfg.performance_evaluation.may_access_analysis as maa"""
     import dace.sdfg.performance_evaluation.total_volume as tv 
-    """import dace.sdfg.performance_evaluation.operational_intensity as oi"""
+    import dace.sdfg.performance_evaluation.operational_intensity as oi
     substitute = True
     
     for benchmark_name in benchmarks:
@@ -165,19 +165,19 @@ if __name__ == "__main__":
         print(substitutions)
         #opt.auto_optimize(sdfg,dace.dtypes.DeviceType.CPU)
         sdfg.save(f"{benchmark_name}.sdfg")
-        try:
+        """try:
 
             print(wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False) )
             wd_no_fail.append(benchmark_name)  
-            """if substitute:
+            if substitute:
                 work = work.subs(substitutions)    
                 depth = depth.subs(substitutions)         
-            print("[Not simplified] Work:", work, "Depth:", depth)"""
+            print("[Not simplified] Work:", work, "Depth:", depth)
             pass
         except Exception as e:
             print(traceback.print_exc())
             wd_fail.append(benchmark_name)
-        """ print("------ Read Write Sets")
+        print("------ Read Write Sets")
         try:
             read, write = maa.analyze_sdfg(sdfg)
             read_simpl, write_simpl = maa.analyze_sdfg(sdfg)
@@ -205,7 +205,7 @@ if __name__ == "__main__":
             print(traceback.print_exc())
             ba_fail.append(benchmark_name)
 
-        TIMEOUT = 20 * 60  # 20 minutes
+        TIMEOUT = 3 * 60  # 20 minutes
 
         try:
             sdfg.compile()     
@@ -213,9 +213,9 @@ if __name__ == "__main__":
             print(traceback.print_exc())
             comp_fail.append(benchmark_name)
 
-        """def analyze_worker(q, oi, sdfg, substitutions):
+        def analyze_worker(q, oi, sdfg, substitutions):
             try:
-                assumptions = {k: 4 for k in substitutions}
+                assumptions = {k: 2 for k in substitutions}
                 oi = oi.analyze_sdfg_op_in(sdfg, {}, 2048, 64, assumptions)
                 print(oi)
                 q.put(("success", None))
@@ -245,7 +245,7 @@ if __name__ == "__main__":
             else:
                 print("OI:")
 
-        bdata = benchmark.get_data(args["preset"])"""
+        bdata = benchmark.get_data(args["preset"])
 
     end = (int(datetime.now(timezone.utc).timestamp() * 1000))
     print("Duration:",  (end - start)/(1000*60), "min")

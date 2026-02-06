@@ -9,7 +9,6 @@ import numpy as np
 
 import argparse
 import json
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -29,6 +28,31 @@ import seaborn as sns
 
 import importlib
 import dace
+import sqlite3
+import pathlib
+
+def read_sqlite_db(db_path: pathlib.Path):
+    print(f"\n=== Database: {db_path} ===")
+
+    conn = sqlite3.connect(db_path)
+    dfs = dict()
+    try:
+        tables = pd.read_sql(
+            "SELECT name FROM sqlite_master WHERE type='table';", conn
+        )["name"].tolist()
+
+        if not tables:
+            print("  (No tables found)")
+            return
+
+        for table in tables:
+            df = pd.read_sql(f"SELECT * FROM {table}", conn)
+            dfs[table] = df
+    finally:
+        conn.close()
+    
+    return dfs
+
 def get_bench_sdfg(bench:Benchmark, dace_framework:DaceFramework):
         module_pypath = "npbench.benchmarks.{r}.{m}".format(r=bench.info["relative_path"].replace('/', '.'),
                                                             m=bench.info["module_name"])
@@ -152,8 +176,8 @@ def generate_roofline_plot(
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
 
-    ax.set_xlabel("Operational Intensity [FLOP / Byte]", fontsize=14)
-    ax.set_ylabel("Performance [GFLOP/s]", fontsize=14)
+    ax.set_xlabel("Operational Intensity [FLOP / Byte]", fontsize=16)
+    ax.set_ylabel("Performance [GFLOP/s]", fontsize=16)
 
     # ---------------- Rooflines ----------------
 
@@ -224,10 +248,10 @@ def generate_roofline_plot(
     ax.text(
         xmax * 0.95,
         peak_flops_theoretical * 1.03,
-        f"Theoretical peak: {peak_flops_theoretical:.1f} GFLOP/s",
+        f"Theoretical peak FLOPs: {peak_flops_theoretical:.1f} GFLOP/s",
         ha="right",
         va="bottom",
-        fontsize=11,
+        fontsize=14,
         color="grey"
     )
 
@@ -235,15 +259,14 @@ def generate_roofline_plot(
         ax.text(
             xmax * 0.95,
             peak_flops_practical * 0.97,
-            f"Practical peak: {peak_flops_practical:.1f} GFLOP/s",
+            f"Practical peak FLOPs: {peak_flops_practical:.1f} GFLOP/s",
             ha="right",
             va="top",
-            fontsize=11,
+            fontsize=14,
             color="grey"
         )
 
     # ---------------- styling ----------------
-    n_benchmarks = len(benchmarks)
 
     if not benchmark_colors:
         # Generate evenly spaced hues
@@ -254,17 +277,17 @@ def generate_roofline_plot(
 
         benchmark_colors = {bm: colors[i] for i, bm in enumerate(benchmarks)}
 
-    save_color_reference(benchmark_colors, filename+"_colors")
+    save_color_reference(benchmark_colors, filename+"_colors.pdf")
 
     framework_markers = {
-        'cupy': '1',
-        'dace_cpu': 'o',
-        'dace_gpu': '8',
-        'numba': 's',
-        'pythran': 'X',
-        'triton': 'd',
-        'jax': 'v',
-        'numpy': '*'
+        'cupy': ('1', 80),
+        'dace_cpu': ('o', 80),
+        'dace_gpu': ('8', 80),
+        'numba': ('s', 80),
+        'pythran': ('X',80),
+        'triton': ('d', 80),
+        'jax': ('v', 80),
+        'numpy': ('*', 100)
     }
 
     # ---------------- Benchmarks ----------------
@@ -296,7 +319,7 @@ def generate_roofline_plot(
             rotation=90,
             ha="center",
             va="bottom",
-            fontsize=11,
+            fontsize=14,
             color="#888888"
         )
 
@@ -314,14 +337,17 @@ def generate_roofline_plot(
             t_med = np.median(times)
             gflops = (total_flops / t_med) / 1e9
 
+            print(framework_markers[fw])
+            fw_marker = framework_markers[fw][0]
+            fw_size = framework_markers[fw][1]
             ax.scatter(
                 oi,
                 gflops,
-                s=50,
+                s=fw_size,
                 color=benchmark_colors.get(bm, "#444444"),
                 alpha=0.8,
                 zorder=10,
-                marker=framework_markers[fw]
+                marker=fw_marker
             )
 
     # ---------------- Legend ----------------
@@ -338,7 +364,7 @@ def generate_roofline_plot(
         legend_elements.append(
             Line2D(
                 [0], [0],
-                marker=framework_markers[fw],
+                marker=framework_markers[fw][0],
                 linestyle="",
                 markersize=7,
                 color="#444444",
@@ -350,7 +376,7 @@ def generate_roofline_plot(
     handles=legend_elements,
     loc="lower center",
     ncol=len(frameworks) + 3,
-    fontsize=12,
+    fontsize=14,
     bbox_to_anchor=(0.5, 0.00),  # move legend BELOW axes
     frameon=True,
     fancybox=True,
@@ -386,9 +412,10 @@ def generate_roofline_plot(
     y0 * 1.2,
     f"Theoretical Bandwidth: {peak_mem_bw_theoretical:.1f} GB/s",
     rotation=angle_mem,
-    fontsize=11,
+    fontsize=14,
     color="grey",
     rotation_mode="anchor",
+    zorder=15
 )
     if peak_mem_bw_practical and peak_flops_practical:
         y0p = peak_mem_bw_practical * x0
@@ -397,9 +424,10 @@ def generate_roofline_plot(
             y0p * 0.7,
             f"Practical Bandwidth: {peak_mem_bw_practical:.1f} GB/s",
             rotation=angle_mem,
-            fontsize=11,
+            fontsize=14,
             color="grey",
             rotation_mode="anchor",
+            zorder = 15
         )
 
 
@@ -417,26 +445,18 @@ if __name__ == "__main__":
                         choices=['S', 'M', 'L', 'paper'],
                         nargs="?",
                         default='L')
-    parser.add_argument("-v",
-                        "--validate",
-                        type=util.str2bool,
-                        nargs="?",
-                        default=True)
-    parser.add_argument("-e",
-                        "--build_event_sets",
-                        type=util.str2bool,
-                        nargs="?",
-                        default=True)
-    parser.add_argument("-r", "--repeat", type=int, nargs="?", default=10)
     parser.add_argument("-b", "--benchmarks", type=str, nargs="+", default=None)
+    parser.add_argument("-f", "--floating_point_peak", type=float, nargs="?", default=4608)
+    parser.add_argument("-m", "--memory_peak", type=float, nargs="?", default=409.6)
+    parser.add_argument("-d", "--database", type=str, nargs="+", default="/home/alex/Studium/bachelor_thesis/artifacts_repo/bsc_thesis_artifacts/plots_for_roofline/npbench_L_amd_eypc_7742.db")
+
 
     args = vars(parser.parse_args())
 
     dace_cpu_framework = DaceFramework("dace_cpu")
-    repetitions = args["repeat"]
     preset = args["preset"]
 
-    benchmark_set = ['adi','arc_distance','atax','azimint_hist','azimint_naive','bicg',
+    benchmark_set = {'adi','arc_distance','atax','azimint_hist','azimint_naive','bicg',
                   'cavity_flow','channel_flow','cholesky2','cholesky','compute','contour_integral',
                   'conv2d_bias','correlation',# 'covariance2', --> cov 2 dace does not exist
                   'covariance','crc16','deriche',#'doitgen', --> doitgen, auto opt fails (more precisely, expand_library_nodes())
@@ -446,138 +466,87 @@ if __name__ == "__main__":
                   #'mandelbrot2', --> mandelbrot2, auto_opt fails
                   'mlp','mvt','nbody','nussinov','resnet','scattering_self_energies','seidel_2d',
                   'softmax','spmv',# 'stockham_fft', --> stockham_fft compilation fails
-                  'symm','syr2k','syrk','trisolv','trmm','vadv']
+                  'symm','syr2k','syrk','trisolv','trmm','vadv'}
     
-    benchmarks = list()
-    if args["benchmarks"]:
-        requested_bms = []
-        for benchmark_name in args["benchmarks"]:
-            if benchmark_name in benchmark_set:
-                benchmarks.append(benchmark_name)
-            else:
-                print(f"Could not find a benchmark with the name {benchmark_name}")
-    else:
-        benchmarks = list(benchmark_set)
-
     
+    benchmarks = sorted([bm for bm in args["benchmarks"] if bm in benchmark_set]) if args["benchmarks"] else list(benchmark_set)
 
+    path = pathlib.Path(args["database"])
 
-    # Path to bm_ois.json in the same folder as this Python file
-    json_path_ois = Path(__file__).parent / "bench_ois.json"
-    json_path_works = Path(__file__).parent / "bench_works.json"
+    if path.is_file():
+        dfs = read_sqlite_db(path)
+    elif args.path.is_dir():
+        raise Exception("Directory input not supported in this version.")
 
-    if json_path_ois.exists():
-        # Read existing JSON into a dictionary
-        with json_path_ois.open("r", encoding="utf-8") as f:
-            bench_ois = json.load(f)
-    else:
-        # Create empty dict and write it to the file
-        bench_ois = {}
-        with json_path_ois.open("w", encoding="utf-8") as f:
-            json.dump(bench_ois, f, indent=4)
+    symbolic_data = pd.read_csv("volumes_per_preset.csv")
+    symbolic_data = symbolic_data[symbolic_data["preset"] == preset]
+    time_table = dfs["results"]
 
-    if json_path_works.exists():
-        # Read existing JSON into a dictionary
-        with json_path_works.open("r", encoding="utf-8") as f:
-            bench_works = json.load(f)
-    else:
-        # Create empty dict and write it to the file
-        bench_works = {}
-        with json_path_works.open("w", encoding="utf-8") as f:
-            json.dump(bench_works, f, indent=4)
-        
-    data_dict = {}
+    time_table = time_table.copy()
 
-    mem_speed = 256e9
-    peak_flops = 6960e9/2
+    benchmark_rename_map = {}
+    for benchmark in benchmarks:
+        npb = Benchmark(benchmark)
+        short_name = npb.info["short_name"]
+        benchmark_rename_map[short_name] = benchmark
     
-    for benchmark_name in benchmarks:
-        oi = None
-        work = None
-        if benchmark_name in bench_ois:
-            if preset in bench_ois[benchmark_name]:
-                print("found old oi")
-                oi = bench_ois[benchmark_name][preset]
-                work = bench_works[benchmark_name][preset]
-                if oi == -1: continue
-        if oi is None:
-            benchmark = Benchmark(benchmark_name)
-            substitutions = benchmark.info["parameters"][preset]
-            sdfg, simplified_sdfg = get_bench_sdfg(benchmark, dace_cpu_framework)
-            vol_r, vol_w = tv.analyze_sdfg(sdfg)
-            work, _ = wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False)
-
-            work = work.subs(substitutions)
-            total_vol = (vol_r+vol_w).subs(substitutions)
-
-            oi = work/total_vol
-            try:
-                oi = float(oi)
-                work = int(work)
-                print(f"{benchmark_name} OI:", oi)
-            except:
-                print("Could not transform OI", oi, "to an integer")
-                oi = -1
-                work = -1
-            if benchmark_name in bench_ois:
-                bench_ois[benchmark_name][preset] = oi
-                bench_works[benchmark_name][preset] = work
-            else:
-                bench_ois[benchmark_name] = {preset: oi}
-                bench_works[benchmark_name] = {preset: work}
-            
-            if oi == -1:
-                continue
-            
-        data_dict[benchmark_name] = {"peak_achievable_flops":min(peak_flops, oi*mem_speed), "total_flops": work, "operational_intensity": oi} 
-    
-    with json_path_ois.open("w", encoding="utf-8") as f:
-            json.dump(bench_ois, f, indent=4)
-    with json_path_works.open("w", encoding="utf-8") as f:
-            json.dump(bench_works, f, indent=4)
-    
-    database = db_path = Path(__file__).parent / "npbench_L_amd_eypc_7742.db"
-    
-    conn = util.create_connection(database)
-    data = pd.read_sql_query("SELECT * FROM results", conn)
-    print(data)
-    data = data.drop(['timestamp', 'kind', 'dwarf', 'version'],
-                    axis=1).reset_index(drop=True)
-
-    data = data[data["domain"] != ""]
-    data = data[(data["framework"] != "dace_cpu") |(data["details"] == "auto_opt")]
-
-    data = data[data['preset'] == preset]
-    data = data.drop(['preset'], axis=1).reset_index(drop=True)
-    for _, row in data.iterrows():
-        benchmark = row["benchmark"]
-        framework = row["framework"]
-        time = row["time"]
-
-        if benchmark not in data_dict:
-            continue
-
-        data_dict[benchmark].setdefault("timings", {})
-        data_dict[benchmark]["timings"].setdefault(framework, []).append(time)
-
-    for bench, entries in data_dict.items():
-        print("===============", bench)
-        print(entries)
-
-    benchmarks_with_data = [
-    b for b, d in data_dict.items()
-    if "timings" in d and any(
-        fw in d["timings"] for fw in ["dace_cpu", "numpy", "numba"]
+    time_table["benchmark"] = (
+        time_table["benchmark"]
+        .replace(benchmark_rename_map)
     )
-]
+
+    peak_flops = args["floating_point_peak"]
+    mem_speed = args["memory_peak"]
+
+    # --- Compute operational intensity (OI) ---
+    kernel_df = symbolic_data.copy()
+    print(symbolic_data)
+    kernel_df["oi"] = (
+        kernel_df["work"]
+        / (kernel_df["symbolic_volume_read_bytes"] + kernel_df["symbolic_volume_write_bytes"])
+    )
+
+    # --- Build lookup dictionaries for fast access ---
+    work_lookup = kernel_df.set_index("kernel")["work"].to_dict()
+    oi_lookup = kernel_df.set_index("kernel")["oi"].to_dict()
+
+    # --- Apply framework-specific filtering rules ---
+    filtered_time_table = time_table[
+        ~(
+            ((time_table["framework"] == "numba") & (time_table["details"] != "nopython-mode")) |
+            ((time_table["framework"] == "dace_cpu") & (time_table["details"] != "auto_opt"))
+        )
+    ].copy()
+
+    # --- Build the final dictionary ---
+    result = {}
+
+    for benchmark, bench_df in filtered_time_table.groupby("benchmark"):
+        if benchmark not in work_lookup:
+            continue  # skip benchmarks without kernel info
+
+        work = work_lookup[benchmark]
+        oi = oi_lookup[benchmark]
+
+        result[benchmark] = {
+            "total_flops": work,
+            "peak_achievable_flops": min(peak_flops, oi * mem_speed),
+            "operational_intensity": oi,
+            "timings": {}
+        }
+
+        for framework, fw_df in bench_df.groupby("framework"):
+            result[benchmark]["timings"][framework] = fw_df["time"].tolist()
+
+    benchmarks = list(result.keys())
     generate_roofline_plot(
-    peak_flops_theoretical=3480.0,     # GFLOP/s (theoretical compute peak)
-    peak_flops_practical=3000.0,         # GFLOP/s (sustained / practical)
-    peak_mem_bw_theoretical=204.0,      # GB/s (theoretical DRAM BW)
-    peak_mem_bw_practical=200.0,
-    data_dict=data_dict,
+    peak_flops_theoretical=peak_flops,     # GFLOP/s (theoretical compute peak)
+    peak_flops_practical=3103.9,         # GFLOP/s (sustained / practical)
+    peak_mem_bw_theoretical=mem_speed,      # GB/s (theoretical DRAM BW)
+    peak_mem_bw_practical=230.219,
+    data_dict=result,
     benchmarks=benchmarks,
-    frameworks=["dace_cpu", "numpy", "numba"],
+    frameworks=["dace_cpu", "numpy", "pythran", "jax", "numba"],
     title="CPU Roofline EPYC 7742 (Rome)",
-    filename="roofline"
+    filename="roofline_example"
 )

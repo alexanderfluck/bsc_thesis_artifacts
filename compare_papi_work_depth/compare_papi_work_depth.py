@@ -139,7 +139,8 @@ if __name__ == "__main__":
     preset = args["preset"]
     
     results = {}
-    
+    w_succ = []
+    w_fail = []
     no_diff = []
     for benchmark_name in benchmarks:
         print("="*50, benchmark_name, "="*50)
@@ -147,8 +148,17 @@ if __name__ == "__main__":
 
         sdfg, simplified_sdfg = get_bench_sdfg(benchmark, dace_cpu_framework)
         bdata = benchmark.get_data(args["preset"])
-        #opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
-        for event_set in [{"PAPI_DP_OPS"}]:
+        
+        try:
+            opt.auto_optimize(sdfg, dace.dtypes.DeviceType.CPU)
+            wd.analyze_sdfg(sdfg, {}, wd.get_tasklet_work_depth, [], False)
+            print("succ")
+            w_succ.append(benchmark_name)
+            
+        except:
+            w_fail.append(benchmark_name)
+            traceback.print_exc()
+        """for event_set in [{"PAPI_DP_OPS"}]:
             try:
                 papi.PAPIInstrumentation._counters = event_set   
                 
@@ -200,8 +210,9 @@ if __name__ == "__main__":
                 traceback.print_exc()
                 continue
             results["no_diff"] = no_diff
-            print(work.subs(substitutions))
-        import json
+            print(work.subs(substitutions))"""
+    print(len(w_succ), w_succ, "\n",
+           len(w_fail), w_fail)
     with open('result.json', 'w') as fp:
         json.dump(results, fp, indent=4)
     print(no_diff, len(no_diff))

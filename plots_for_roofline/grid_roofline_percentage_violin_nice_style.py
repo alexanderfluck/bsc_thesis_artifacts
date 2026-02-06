@@ -111,191 +111,82 @@ def get_bench_sdfg(bench:Benchmark, dace_framework:DaceFramework):
 
         return base_sdfg, simplified_sdfg
 
+import seaborn as sns
 
-
-def generate_grid_plot(data:dict, n_rows, n_cols, frameworks, benchmarks, set_ylim:int|None=None, draw_all_frameworks:bool = False):
+def generate_grid_plot(data: dict, frameworks, benchmarks, n_cols=4):
     """
-    Docstring for generate_grid_plot
-    
-    :param data: Needs dict of form {"benchmark_name": {
-                                                            
-                                                        }
-
-    }
-    :type data: dict
-    :param n_rows: number of grid rows
-    :param n_cols: number of grid cols
-    :param frameworks: list of frameworks to plot
-    :param benchmarks: list of benchmarks to plot
-    :param set_ylim: explicitly set the limit on the y-axis (if None, will be automatically scaled)
-    :param draw_all_frameworks: Always draw all frameworks from the frameworks list. If one has no data, it is drawn as 0
+    Plots the Achieved Percentage of Roofline using the Seaborn violin style.
     """
-    fig_width = 2.5 * n_cols
-    fig_height = 2.5 * n_rows
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
-    if n_rows == 1:
-        axes = axes.reshape(1, -1)
-    elif n_cols == 1:
-        axes = axes.reshape(-1, 1)
-
-    axes_flat = axes.flatten()
-
-    framework_colors = {
-        'cupy': '#17becf',
-        'dace_cpu': '#f7a3ff',
-        'dace_gpu': '#9467bd',
-        'numba': '#1f77b4',
-        'pythran': '#2ca02c',
-        'triton': '#ff7f0e',
-        'jax': '#d62728',
-        'numpy': '#d627aa'
-    }
-    color_map = {fw: framework_colors.get(fw, '#808080') for fw in frameworks}
-
-    #percent_formatter = FuncFormatter(lambda y, _: f"{int(y)}%")
-
-    for idx, benchmark in enumerate(benchmarks):
-        if idx >= n_rows * n_cols:
-            break
-
-        ax = axes_flat[idx]
+    # 1. Convert the dictionary data into a Long-Form DataFrame for Seaborn
+    rows = []
+    for benchmark in benchmarks:
         bm_data = data[benchmark]
-
         peak_flops = bm_data["peak_achievable_flops"]
-        flops = bm_data["total_flops"]
-
-        violin_data = []
-        labels = []
+        total_flops = bm_data["total_flops"]
 
         for fw in frameworks:
             if fw in bm_data["timings"]:
-                times = bm_data["timings"][fw]
-                roofline_pcts = []
-                for t in times:
-                    achieved = flops / t
-                    pct = achieved/peak_flops * 100
-                    roofline_pcts.append(pct)
-
-                labels.append(fw)
-                violin_data.append(roofline_pcts)
-            elif draw_all_frameworks:
-                labels.append(fw)
-                violin_data.append([0])
-
-        if violin_data:
-            parts = ax.violinplot(
-            violin_data,
-            showmeans=False,
-            showmedians=False,
-            showextrema=False,
-            widths=0.6,
-        )
-
-        # Violin bodies
-        for body, fw in zip(parts["bodies"], labels):
-            body.set_facecolor(color_map.get(fw, "#808080"))
-            body.set_edgecolor("black")
-            body.set_alpha(0.65)
-            body.set_linewidth(0.5)
-
-        # Manual statistics
-        for i, values in enumerate(violin_data, start=1):
-            values = np.asarray(values)
-
-            median = np.median(values)
-            mean = np.mean(values)
-
-            # Median (solid)
-            ax.hlines(
-                median,
-                i - 0.14,
-                i + 0.14,
-                color="black",
-                linewidth=0.6,
-                zorder=4,
-            )
-
-            # Mean (dashed)
-            ax.hlines(
-                mean,
-                i - 0.14,
-                i + 0.14,
-                color="black",
-                linewidth=0.6,
-                linestyles="--",
-                zorder=4,
-            )
-
-            q1, q3 = np.percentile(values, [25, 75])
-
-            ax.hlines(
-                q1,
-                i - 0.05,
-                i + 0.05,
-                color="black",
-                linewidth=0.6,
-                zorder=4,
-            )
-            ax.hlines(
-                q3,
-                i - 0.05,
-                i + 0.05,
-                color="black",
-                linewidth=0.6,
-                zorder=4,
-            )
-
-            ax.vlines(i, q1, q3, color="black", linewidth=0.5, zorder=4)
-        
-        if set_ylim:
-            ax.set_ylim(0.0, set_ylim)
-        else:
-            ax.set_ylim(bottom=0.0)
-
-        ax.set_title(benchmark, fontsize=9, fontweight='bold')
-        ax.set_xticks(range(1, len(labels)+1))
-        ax.set_xticklabels(labels, fontsize=7, rotation=0)
-        ax.tick_params(axis='y', labelsize=7)
-        ax.set_ylabel('Percentage of Roofline', fontsize=6)
-        ax.grid(axis='y', alpha=0.3, linestyle='--', linewidth=0.3)
-        #ax.yaxis.set_major_formatter(percent_formatter)
-
-
-    for idx in range(len(benchmarks), n_rows * n_cols):
-        axes_flat[idx].axis('off')
-
-    fig.suptitle('Achieved Percentage of Roofline', fontsize=16, fontweight='bold', y=0.995)
-
-    legend_elements = [plt.Rectangle((0,0),1,1, facecolor=color_map[fw], label=fw) for fw in frameworks]
+                for t in bm_data["timings"][fw]:
+                    achieved = total_flops / t
+                    pct = (achieved / peak_flops) * 100
+                    rows.append({
+                        "Benchmark": benchmark,
+                        "Framework": fw,
+                        "Percentage of Roofline": pct
+                    })
     
-    legend_elements.extend([
-    Line2D([0], [0], color="black", linewidth=1.0, label="Median"),
-    Line2D([0], [0], color="black", linewidth=0.6, linestyle="--", label="Mean"),
-    Line2D([0], [0], color="black", linewidth=0, marker="|",
-           markersize=12, label="Interquartile range (Q1–Q3)"),
-])
+    df_plot = pd.DataFrame(rows)
 
-    legend = fig.legend(
-        handles=legend_elements,
-        loc="upper center",
-        ncol=len(frameworks) + 3,
-        fontsize=11,
-        bbox_to_anchor=(0.5, -0.02),
-        frameon=True,
-        fancybox=True,
-        shadow=True,
-        borderpad=1
-    )
-    legend.get_frame().set_linewidth(1.5)
-    legend.get_frame().set_edgecolor('gray')
+    # 2. Setup Figure Grid
+    sns.set(style="whitegrid")
+    n_rows = (len(benchmarks) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.5 * n_cols, 3.5 * n_rows), squeeze=False)
+    
+    # Define the color palette used in your colleague's style or custom
+    fw_palette = {
+        'cupy': '#17becf', 'dace_cpu': '#f7a3ff', 'dace_gpu': '#9467bd',
+        'numba': '#1f77b4', 'pythran': '#2ca02c', 'triton': '#ff7f0e',
+        'jax': '#d62728', 'numpy': '#d627aa'
+    }
 
-    plt.tight_layout(rect=[0, 0.04, 1, 0.98])
+    # 3. Plotting loop
+    for i, benchmark in enumerate(benchmarks):
+        ax = axes[i // n_cols, i % n_cols]
+        bench_df = df_plot[df_plot["Benchmark"] == benchmark]
+        
+        if not bench_df.empty:
+            sns.violinplot(
+                data=bench_df,
+                x="Framework",
+                y="Percentage of Roofline",
+                hue="Framework",
+                ax=ax,
+                palette=fw_palette,
+                inner="box",  # This adds the mini boxplot inside
+                cut=0,        # Limits violin to observed data range
+                legend=False
+            )
+        
+        ax.set_title(f"{benchmark}", fontsize=15, fontweight='bold')
+        ax.set_xlabel("")
+        ax.set_ylabel("% of Roofline" if i % n_cols == 0 else "")
+        ax.tick_params(axis='x', rotation=0, labelsize=15)
+        ax.tick_params(axis='y', labelsize=15)
+        ax.set_ylim(bottom=0)
+        ax.grid(True, axis='y', alpha=0.3)
 
-    filename_base = f'benchmark_grid_{n_rows}x{n_cols}_roofline_pct_violin'
-    plt.savefig(f'{filename_base}.pdf', dpi=300, bbox_inches='tight')
-    print(f"Saved {filename_base}.pdf")
-    plt.savefig(f'{filename_base}.png', dpi=300, bbox_inches='tight')
-    print(f"Saved {filename_base}.png")
+    # 4. Cleanup: Hide empty subplots
+    for j in range(i + 1, n_rows * n_cols):
+        fig.delaxes(axes[j // n_cols, j % n_cols])
+
+    plt.tight_layout()
+    
+    # Save files
+    output_base = f"roofline_violin_{len(benchmarks)}bm"
+    plt.savefig(f"{output_base}.pdf", bbox_inches='tight')
+    plt.savefig(f"{output_base}.png", dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"✓ Saved: {output_base}.pdf and .png")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -305,9 +196,9 @@ if __name__ == "__main__":
                         nargs="?",
                         default='L')
     parser.add_argument("-b", "--benchmarks", type=str, nargs="+", default=None)
-    parser.add_argument("-f", "--floating_point_peak", type=float, nargs="?", default=6960)
-    parser.add_argument("-m", "--memory_peak", type=float, nargs="?", default=409.6)
-    parser.add_argument("-d", "--database", type=str, nargs="+", default="/home/alex/Studium/bachelor_thesis/artifacts_repo/bsc_thesis_artifacts/plots_for_roofline/npbench_L_amd_eypc_7742.db")
+    parser.add_argument("-f", "--floating_point_peak", type=float, nargs="?", default=3456)
+    parser.add_argument("-m", "--memory_peak", type=float, nargs="?", default=256)
+    parser.add_argument("-d", "--database", type=str, nargs="+", default="/home/alex/Studium/bachelor_thesis/artifacts_repo/bsc_thesis_artifacts/plots_for_roofline/npbench_L_Intel.db")
 
 
     args = vars(parser.parse_args())
@@ -372,7 +263,8 @@ if __name__ == "__main__":
     filtered_time_table = time_table[
         ~(
             ((time_table["framework"] == "numba") & (time_table["details"] != "nopython-mode")) |
-            ((time_table["framework"] == "dace_cpu") & (time_table["details"] != "auto_opt"))
+            ((time_table["framework"] == "dace_cpu") & (time_table["details"] != "auto_opt")) |
+            ((time_table["framework"] == "jax") & (time_table["details"] == "lib-implementation"))
         )
     ].copy()
 
@@ -398,11 +290,10 @@ if __name__ == "__main__":
 
     print(result.keys())
 
-    benchmarks = list(result.keys())
+    benchmarks = sorted(list(result.keys()))
     generate_grid_plot(
         data=result,
-        n_rows=len(benchmarks)//4,
-        n_cols=4,
         frameworks=["dace_cpu", "numpy", "numba", "jax", "pythran"],
         benchmarks=benchmarks,
+        n_cols=3
     )
